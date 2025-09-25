@@ -1,10 +1,12 @@
 -- ESP Script with Rainbow Beam and Box, Toggle with "B" key, and a freecam toggled by "C".
 -- A text notification now appears in the bottom-right corner of the screen.
+-- New: Fullbright prompt on startup and X-ray vision on keybind "T".
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -15,6 +17,8 @@ ESPFolder.Name = "RainbowESP"
 ESPFolder.Parent = game.CoreGui
 
 local freecamEnabled = false
+local xrayEnabled = false
+local originalTransparencies = {}
 
 -- Rainbow color generator
 local function getRainbowColor()
@@ -210,6 +214,28 @@ local function updateFreecam()
 	Camera.CFrame = Camera.CFrame * CFrame.Angles(0, -mouseDelta.X * 0.005, 0) * CFrame.Angles(-mouseDelta.Y * 0.005, 0, 0)
 end
 
+-- X-ray function
+local function toggleXray()
+	xrayEnabled = not xrayEnabled
+	if xrayEnabled then
+		for _, part in ipairs(workspace:GetDescendants()) do
+			if part:IsA("BasePart") or part:IsA("MeshPart") or part:IsA("Part") or part:IsA("UnionOperation") then
+				if part.Parent and not Players:GetPlayerFromCharacter(part.Parent) and not part:IsDescendantOf(LocalPlayer.Character) and part.Transparency < 0.9 then
+					originalTransparencies[part] = part.Transparency
+					part.Transparency = 0.5
+				end
+			end
+		end
+	else
+		for part, transparency in pairs(originalTransparencies) do
+			if part and part.Parent then
+				part.Transparency = transparency
+			end
+		end
+		originalTransparencies = {}
+	end
+end
+
 -- Keybind listener
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
@@ -217,32 +243,88 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		toggleESP()
 	elseif input.KeyCode == Enum.KeyCode.C then
 		toggleFreecam()
+	elseif input.KeyCode == Enum.KeyCode.T then
+		toggleXray()
 	end
 end)
 
--- RunService update loop
-RunService.RenderStepped:Connect(function()
-	updateESP()
-	updateFreecam()
-end)
+-- Notify loaded (Bottom-right corner)
+local function showNotification(text)
+	local notificationGui = Instance.new("ScreenGui")
+	notificationGui.Name = "Notification"
+	notificationGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Notify loaded
-local notificationGui = Instance.new("ScreenGui")
-notificationGui.Name = "Notification"
-notificationGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(0, 200, 0, 50)
+	textLabel.Position = UDim2.new(1, -210, 1, -60)
+	textLabel.Text = text
+	textLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+	textLabel.Font = Enum.Font.SourceSansBold
+	textLabel.FontSize = Enum.FontSize.Size24
+	textLabel.BackgroundTransparency = 1
+	textLabel.Parent = notificationGui
 
-local textLabel = Instance.new("TextLabel")
-textLabel.Size = UDim2.new(0, 200, 0, 50)
-textLabel.Position = UDim2.new(1, -210, 1, -60)
-textLabel.Text = "sk8kid loaded"
-textLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-textLabel.Font = Enum.Font.SourceSansBold
-textLabel.FontSize = Enum.FontSize.Size24
-textLabel.BackgroundTransparency = 1
-textLabel.Parent = notificationGui
+	wait(5)
+	textLabel:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 1)
+	wait(1)
+	textLabel:Destroy()
+	notificationGui:Destroy()
+end
 
-wait(5)
-textLabel:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 1)
-wait(1)
-textLabel:Destroy()
-notificationGui:Destroy()
+-- Full-bright prompt
+local function showFullbrightPrompt()
+	local promptGui = Instance.new("ScreenGui")
+	promptGui.Name = "FullbrightPrompt"
+	promptGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 300, 0, 100)
+	frame.Position = UDim2.new(0.5, -150, 0.5, -50)
+	frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+	frame.BorderSizePixel = 0
+	frame.Parent = promptGui
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, 0, 0, 30)
+	titleLabel.Position = UDim2.new(0, 0, 0, 0)
+	titleLabel.Text = "hey nephew do you want full bright on"
+	titleLabel.TextColor3 = Color3.new(1, 1, 1)
+	titleLabel.Font = Enum.Font.SourceSansBold
+	titleLabel.FontSize = Enum.FontSize.Size18
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Parent = frame
+
+	local yesButton = Instance.new("TextButton")
+	yesButton.Size = UDim2.new(0.4, 0, 0.4, 0)
+	yesButton.Position = UDim2.new(0.05, 0, 0.5, 0)
+	yesButton.Text = "Yes"
+	yesButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+	yesButton.Font = Enum.Font.SourceSansBold
+	yesButton.TextColor3 = Color3.new(1, 1, 1)
+	yesButton.Parent = frame
+
+	local noButton = Instance.new("TextButton")
+	noButton.Size = UDim2.new(0.4, 0, 0.4, 0)
+	noButton.Position = UDim2.new(0.55, 0, 0.5, 0)
+	noButton.Text = "No"
+	noButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	noButton.Font = Enum.Font.SourceSansBold
+	noButton.TextColor3 = Color3.new(1, 1, 1)
+	noButton.Parent = frame
+
+	yesButton.Activated:Connect(function()
+		Lighting.Brightness = 2
+		Lighting.GlobalShadows = false
+		Lighting.Ambient = Color3.new(1, 1, 1)
+		Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+		promptGui:Destroy()
+	end)
+
+	noButton.Activated:Connect(function()
+		promptGui:Destroy()
+	end)
+end
+
+-- Run script
+showFullbrightPrompt()
+showNotification("sk8kid loaded")
