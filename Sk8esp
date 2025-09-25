@@ -15,154 +15,155 @@ ESPFolder.Parent = game.CoreGui
 
 -- Rainbow color generator
 local function getRainbowColor()
-    local time = tick() * 5
-    local r = math.sin(time) * 0.5 + 0.5
-    local g = math.sin(time + 2) * 0.5 + 0.5
-    local b = math.sin(time + 4) * 0.5 + 0.5
-    return Color3.new(r, g, b)
+	local time = tick() * 5
+	local r = math.sin(time) * 0.5 + 0.5
+	local g = math.sin(time + 2) * 0.5 + 0.5
+	local b = math.sin(time + 4) * 0.5 + 0.5
+	return Color3.new(r, g, b)
 end
 
 -- Create ESP elements for a player
 local function createESP(player)
-    local character = player.Character
-    if not character then return end
+	local character = player.Character
+	if not character then return end
 
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not rootPart or not humanoid then return end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not rootPart or not humanoid then return end
 
-    local box = Instance.new("BoxHandleAdornment")
-    box.Adornee = rootPart
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Transparency = 0.5
-    box.Size = Vector3.new(4, 6, 2)
-    box.Color3 = Color3.new(1, 1, 1)
-    box.Parent = ESPFolder
+	local box = Instance.new("BoxHandleAdornment")
+	box.Adornee = rootPart
+	box.AlwaysOnTop = true
+	box.ZIndex = 10
+	box.Transparency = 0.5
+	box.Size = Vector3.new(4, 6, 2)
+	box.Color3 = Color3.new(1, 1, 1)
+	box.Parent = ESPFolder
 
-    local beam = Instance.new("Beam")
-    beam.Name = "RainbowBeam"
-    beam.Attachment0 = Instance.new("Attachment", Camera)
-    beam.Attachment1 = Instance.new("Attachment", rootPart)
-    beam.FaceCamera = true
-    beam.Width0 = 0.1
-    beam.Width1 = 0.1
-    beam.LightEmission = 1
-    beam.Parent = ESPFolder
+	local beam = Instance.new("Beam")
+	beam.Name = "RainbowBeam"
+	beam.Attachment0 = Instance.new("Attachment", Camera)
+	beam.Attachment1 = Instance.new("Attachment", rootPart)
+	beam.FaceCamera = true
+	beam.Width0 = 0.1
+	beam.Width1 = 0.1
+	beam.LightEmission = 1
+	beam.Parent = ESPFolder
 
-    return {
-        box = box,
-        beam = beam,
-        rootPart = rootPart,
-        humanoid = humanoid
-    }
+	return {
+		box = box,
+		beam = beam,
+		rootPart = rootPart,
+		humanoid = humanoid
+	}
 end
 
 local ESPPlayers = {}
 
 -- Function to clean up ESP elements for a player
 local function cleanupESP(player)
-    if ESPPlayers[player] then
-        local espData = ESPPlayers[player]
-        if espData.box and espData.box.Parent then espData.box:Destroy() end
-        if espData.beam and espData.beam.Parent then espData.beam:Destroy() end
-        ESPPlayers[player] = nil
-    end
+	if ESPPlayers[player] then
+		local espData = ESPPlayers[player]
+		if espData.box and espData.box.Parent then espData.box:Destroy() end
+		if espData.beam and espData.beam.Parent then espData.beam:Destroy() end
+		ESPPlayers[player] = nil
+	end
 end
 
 -- Function to update ESP every frame
 local function updateESP()
-    for player, espData in pairs(ESPPlayers) do
-        local character = player.Character
-        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	for player, espData in pairs(ESPPlayers) do
+		local character = player.Character
+		local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
-        if character and rootPart and humanoid and ESPEnabled then
-            espData.box.Adornee = rootPart
-            espData.box.Size = Vector3.new(3, humanoid.HipHeight * 2 + 1, 1)
-            espData.box.Visible = true
+		if character and rootPart and humanoid and ESPEnabled then
+			espData.box.Adornee = rootPart
+			espData.box.Size = Vector3.new(3, humanoid.HipHeight * 2 + 1, 1)
+			espData.box.Visible = true
 
-            -- Update rainbow color
-            local color = getRainbowColor()
-            espData.box.Color3 = color
-            espData.beam.Color = ColorSequence.new(color)
-            espData.beam.Enabled = true
-        else
-            -- Character no longer exists, clean up ESP
-            cleanupESP(player)
-        end
-    end
+			-- Update rainbow color
+			local color = getRainbowColor()
+			espData.box.Color3 = color
+			espData.beam.Color = ColorSequence.new(color)
+			espData.beam.Enabled = true
+		else
+			-- Character no longer exists, clean up ESP
+			cleanupESP(player)
+		end
+	end
 end
 
 -- Connect player character added
 local function onCharacterAdded(character)
-    local player = Players:GetPlayerFromCharacter(character)
-    if player and player ~= LocalPlayer then
-        -- Clean up any old ESP before creating new
-        cleanupESP(player)
+	local player = Players:GetPlayerFromCharacter(character)
+	if player and player ~= LocalPlayer then
+		-- Clean up any old ESP before creating new
+		cleanupESP(player)
 
-        -- Create new ESP only if enabled
-        if ESPEnabled then
-            ESPPlayers[player] = createESP(player)
-        end
-    end
+		-- Create new ESP only if enabled
+		if ESPEnabled then
+			ESPPlayers[player] = createESP(player)
+		end
+	end
 end
 
 -- Handle players joining and leaving
 Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(onCharacterAdded)
-    player.CharacterRemoving:Connect(function()
-        cleanupESP(player)
-    end)
+	player.CharacterAdded:Connect(onCharacterAdded)
+	player.CharacterRemoving:Connect(function()
+		cleanupESP(player)
+	end)
 end)
 
 -- Initialize ESP for players already in the game
 for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        if player.Character then
-            -- We don't create ESP on init. We'll wait for the toggle.
-        end
-        player.CharacterAdded:Connect(onCharacterAdded)
-        player.CharacterRemoving:Connect(function()
-            cleanupESP(player)
-        end)
-    end
+	if player ~= LocalPlayer then
+		if player.Character then
+			-- We don't create ESP on init. We'll wait for the toggle.
+		end
+		player.CharacterAdded:Connect(onCharacterAdded)
+		player.CharacterRemoving:Connect(function()
+			cleanupESP(player)
+		end)
+	end
 end
 
 -- Toggle ESP function
 local function toggleESP()
-    ESPEnabled = not ESPEnabled
-    if ESPEnabled then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                cleanupESP(player)
-                ESPPlayers[player] = createESP(player)
-            end
-        end
-    else
-        for player, _ in pairs(ESPPlayers) do
-            cleanupESP(player)
-        end
-    end
+	ESPEnabled = not ESPEnabled
+	if ESPEnabled then
+		for _, player in pairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				cleanupESP(player)
+				ESPPlayers[player] = createESP(player)
+			end
+		end
+	else
+		for player, _ in pairs(ESPPlayers) do
+			cleanupESP(player)
+		end
+	end
 end
 
 -- Keybind listener
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.B then
-        toggleESP()
-    end
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.B then
+		toggleESP()
+	end
 end)
 
 -- RunService update loop
 RunService.RenderStepped:Connect(function()
-    updateESP()
+	updateESP()
 end)
 
 -- Notify loaded
 StarterGui:SetCore("ChatMakeSystemMessage", {
-    Text = "sk8kid loaded",
-    Color = Color3.fromRGB(100, 255, 100),
-    Font = Enum.Font.SourceSansBold,
-    FontSize = Enum.FontSize.Size24
+	Text = "sk8kid loaded",
+	Color = Color3.fromRGB(100, 255, 100),
+	Font = Enum.Font.SourceSansBold,
+	FontSize = Enum.FontSize.Size24
 })
+
