@@ -1,4 +1,5 @@
--- ESP Script with Rainbow Beam and Box, Toggle with "B" key, and Load Notification
+-- ESP Script with Rainbow Beam and Box, Toggle with "B" key, and a freecam toggled by "C".
+-- A text notification now appears in the bottom-right corner of the screen.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,6 +13,8 @@ local ESPEnabled = false
 local ESPFolder = Instance.new("Folder")
 ESPFolder.Name = "RainbowESP"
 ESPFolder.Parent = game.CoreGui
+
+local freecamEnabled = false
 
 -- Rainbow color generator
 local function getRainbowColor()
@@ -31,6 +34,7 @@ local function createESP(player)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not rootPart or not humanoid then return end
 
+	-- Create BoxHandleAdornment
 	local box = Instance.new("BoxHandleAdornment")
 	box.Adornee = rootPart
 	box.AlwaysOnTop = true
@@ -39,22 +43,31 @@ local function createESP(player)
 	box.Size = Vector3.new(4, 6, 2)
 	box.Color3 = Color3.new(1, 1, 1)
 	box.Parent = ESPFolder
+	box.Visible = false -- Start invisible
 
+	-- Create the attachments for the beam
+	local attachment0 = Instance.new("Attachment", Camera)
+	local attachment1 = Instance.new("Attachment", rootPart)
+
+	-- Create the Beam
 	local beam = Instance.new("Beam")
 	beam.Name = "RainbowBeam"
-	beam.Attachment0 = Instance.new("Attachment", Camera)
-	beam.Attachment1 = Instance.new("Attachment", rootPart)
+	beam.Attachment0 = attachment0
+	beam.Attachment1 = attachment1
 	beam.FaceCamera = true
 	beam.Width0 = 0.1
 	beam.Width1 = 0.1
 	beam.LightEmission = 1
 	beam.Parent = ESPFolder
+	beam.Enabled = false -- Start disabled
 
 	return {
 		box = box,
 		beam = beam,
 		rootPart = rootPart,
-		humanoid = humanoid
+		humanoid = humanoid,
+		attachment0 = attachment0,
+		attachment1 = attachment1,
 	}
 end
 
@@ -66,6 +79,8 @@ local function cleanupESP(player)
 		local espData = ESPPlayers[player]
 		if espData.box and espData.box.Parent then espData.box:Destroy() end
 		if espData.beam and espData.beam.Parent then espData.beam:Destroy() end
+		if espData.attachment0 and espData.attachment0.Parent then espData.attachment0:Destroy() end
+		if espData.attachment1 and espData.attachment1.Parent then espData.attachment1:Destroy() end
 		ESPPlayers[player] = nil
 	end
 end
@@ -78,17 +93,16 @@ local function updateESP()
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
 		if character and rootPart and humanoid and ESPEnabled then
+			-- Update box properties
 			espData.box.Adornee = rootPart
 			espData.box.Size = Vector3.new(3, humanoid.HipHeight * 2 + 1, 1)
-			espData.box.Visible = true
 
-			-- Update rainbow color
+			-- Update rainbow color for both box and beam
 			local color = getRainbowColor()
 			espData.box.Color3 = color
 			espData.beam.Color = ColorSequence.new(color)
-			espData.beam.Enabled = true
 		else
-			-- Character no longer exists, clean up ESP
+			-- Character no longer exists, or ESP is disabled
 			cleanupESP(player)
 		end
 	end
@@ -104,6 +118,10 @@ local function onCharacterAdded(character)
 		-- Create new ESP only if enabled
 		if ESPEnabled then
 			ESPPlayers[player] = createESP(player)
+			if ESPPlayers[player] then
+				ESPPlayers[player].box.Visible = true
+				ESPPlayers[player].beam.Enabled = true
+			end
 		end
 	end
 end
@@ -119,9 +137,6 @@ end)
 -- Initialize ESP for players already in the game
 for _, player in pairs(Players:GetPlayers()) do
 	if player ~= LocalPlayer then
-		if player.Character then
-			-- We don't create ESP on init. We'll wait for the toggle.
-		end
 		player.CharacterAdded:Connect(onCharacterAdded)
 		player.CharacterRemoving:Connect(function()
 			cleanupESP(player)
@@ -136,14 +151,63 @@ local function toggleESP()
 		for _, player in pairs(Players:GetPlayers()) do
 			if player ~= LocalPlayer and player.Character then
 				cleanupESP(player)
-				ESPPlayers[player] = createESP(player)
+				local espData = createESP(player)
+				if espData then
+					ESPPlayers[player] = espData
+					espData.box.Visible = true
+					espData.beam.Enabled = true
+				end
 			end
 		end
 	else
-		for player, _ in pairs(ESPPlayers) do
-			cleanupESP(player)
+		for player, espData in pairs(ESPPlayers) do
+			if espData.box then espData.box.Visible = false end
+			if espData.beam then espData.beam.Enabled = false end
 		end
 	end
+end
+
+-- Freecam function
+local freecam = {
+	enabled = false,
+	speed = 1
+}
+
+local function toggleFreecam()
+	freecam.enabled = not freecam.enabled
+
+	if freecam.enabled then
+		Camera.CameraType = Enum.CameraType.Scriptable
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			LocalPlayer.Character.HumanoidRootPart.CanCollide = false
+		end
+	else
+		Camera.CameraType = Enum.CameraType.Custom
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			LocalPlayer.Character.HumanoidRootPart.CanCollide = true
+		end
+	end
+end
+
+local function updateFreecam()
+	if not freecam.enabled then return end
+	
+	local moveVector = Vector3.new()
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + Vector3.new(0,0,1) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector + Vector3.new(0,0,-1) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector + Vector3.new(-1,0,0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + Vector3.new(1,0,0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveVector = moveVector + Vector3.new(0,1,0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveVector = moveVector + Vector3.new(0,-1,0) end
+
+	local move = Camera.CFrame.lookVector * moveVector.Z * freecam.speed + Camera.CFrame.rightVector * moveVector.X * freecam.speed + Camera.CFrame.upVector * moveVector.Y * freecam.speed
+	
+	Camera.CFrame = Camera.CFrame + move
+	
+	local mouseDelta = UserInputService:GetMouseDelta()
+	Camera.CFrame = Camera.CFrame * CFrame.Angles(0, -mouseDelta.X * 0.005, 0) * CFrame.Angles(-mouseDelta.Y * 0.005, 0, 0)
 end
 
 -- Keybind listener
@@ -151,19 +215,34 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.KeyCode == Enum.KeyCode.B then
 		toggleESP()
+	elseif input.KeyCode == Enum.KeyCode.C then
+		toggleFreecam()
 	end
 end)
 
 -- RunService update loop
 RunService.RenderStepped:Connect(function()
 	updateESP()
+	updateFreecam()
 end)
 
 -- Notify loaded
-StarterGui:SetCore("ChatMakeSystemMessage", {
-	Text = "sk8kid loaded",
-	Color = Color3.fromRGB(100, 255, 100),
-	Font = Enum.Font.SourceSansBold,
-	FontSize = Enum.FontSize.Size24
-})
+local notificationGui = Instance.new("ScreenGui")
+notificationGui.Name = "Notification"
+notificationGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+local textLabel = Instance.new("TextLabel")
+textLabel.Size = UDim2.new(0, 200, 0, 50)
+textLabel.Position = UDim2.new(1, -210, 1, -60)
+textLabel.Text = "sk8kid loaded"
+textLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+textLabel.Font = Enum.Font.SourceSansBold
+textLabel.FontSize = Enum.FontSize.Size24
+textLabel.BackgroundTransparency = 1
+textLabel.Parent = notificationGui
+
+wait(5)
+textLabel:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Quad", 1)
+wait(1)
+textLabel:Destroy()
+notificationGui:Destroy()
