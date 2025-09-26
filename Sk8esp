@@ -1,12 +1,13 @@
--- ESP Script with Rainbow Beam and Box, Toggle with "B" key, and a freecam toggled by "C".
--- A text notification now appears in the bottom-right corner of the screen.
--- New: Fullbright prompt on startup and X-ray vision on keybind "T".
+-- ESP Script with all features: Rainbow ESP Box/Tracers, BillboardGui Stud Distance, Fullbright Prompt, X-Ray, and Freecam.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
+
+-- Added a small wait to ensure LocalPlayer and PlayerGui are ready before execution
+wait(0.5) 
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -19,6 +20,7 @@ ESPFolder.Parent = game.CoreGui
 local freecamEnabled = false
 local xrayEnabled = false
 local originalTransparencies = {}
+local originalLightingColorShift = Lighting.ColorShift_Bottom
 
 -- Rainbow color generator
 local function getRainbowColor()
@@ -31,29 +33,50 @@ end
 
 -- Create ESP elements for a player
 local function createESP(player)
-	local character = player.Character
-	if not character then return end
-
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
+    local character = player.Character
+    if not character then return end
+    
+    -- Guaranteed access to the RootPart
+    local rootPart = character:WaitForChild("HumanoidRootPart", 5)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not rootPart or not humanoid then return end
 
-	-- Create BoxHandleAdornment
+	-- Create BoxHandleAdornment (The Box)
 	local box = Instance.new("BoxHandleAdornment")
-	box.Adornee = rootPart
+	box.Adornee = rootPart 
 	box.AlwaysOnTop = true
 	box.ZIndex = 10
 	box.Transparency = 0.5
-	box.Size = Vector3.new(4, 6, 2)
-	box.Color3 = Color3.new(1, 1, 1)
+	box.Size = Vector3.new(3, humanoid.HipHeight * 2 + 1, 1) -- Use character height for size
+	box.Color3 = Color3.new(1, 1, 1) 
 	box.Parent = ESPFolder
-	box.Visible = false -- Start invisible
+	box.Visible = true 
 
+	-- Create BillboardGui for Distance Text (FIXED METHOD)
+	local billboardGui = Instance.new("BillboardGui")
+	billboardGui.Name = "DistanceBillboard"
+	billboardGui.AlwaysOnTop = true
+	billboardGui.Size = UDim2.new(0, 100, 0, 20) -- Fixed screen size
+	billboardGui.StudsOffset = Vector3.new(0, humanoid.HipHeight * 2 + 1, 0) -- Position above the character
+	billboardGui.Parent = rootPart -- Parented directly to the part
+	billboardGui.Enabled = true
+
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.Name = "DistanceLabel"
+	distanceLabel.Size = UDim2.new(1, 0, 1, 0)
+	distanceLabel.Text = "0 Studs"
+	distanceLabel.TextScaled = true 
+	distanceLabel.TextColor3 = Color3.new(1, 1, 1) 
+	distanceLabel.TextStrokeTransparency = 0
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.Font = Enum.Font.SourceSansBold
+	distanceLabel.Parent = billboardGui
+	
 	-- Create the attachments for the beam
 	local attachment0 = Instance.new("Attachment", Camera)
 	local attachment1 = Instance.new("Attachment", rootPart)
 
-	-- Create the Beam
+	-- Create the Beam (Tracer)
 	local beam = Instance.new("Beam")
 	beam.Name = "RainbowBeam"
 	beam.Attachment0 = attachment0
@@ -63,10 +86,12 @@ local function createESP(player)
 	beam.Width1 = 0.1
 	beam.LightEmission = 1
 	beam.Parent = ESPFolder
-	beam.Enabled = false -- Start disabled
+	beam.Enabled = true 
 
 	return {
 		box = box,
+		distanceLabel = distanceLabel,
+		billboardGui = billboardGui, -- Added for cleanup
 		beam = beam,
 		rootPart = rootPart,
 		humanoid = humanoid,
@@ -82,6 +107,7 @@ local function cleanupESP(player)
 	if ESPPlayers[player] then
 		local espData = ESPPlayers[player]
 		if espData.box and espData.box.Parent then espData.box:Destroy() end
+		if espData.billboardGui and espData.billboardGui.Parent then espData.billboardGui:Destroy() end -- Billboard cleanup
 		if espData.beam and espData.beam.Parent then espData.beam:Destroy() end
 		if espData.attachment0 and espData.attachment0.Parent then espData.attachment0:Destroy() end
 		if espData.attachment1 and espData.attachment1.Parent then espData.attachment1:Destroy() end
@@ -91,19 +117,30 @@ end
 
 -- Function to update ESP every frame
 local function updateESP()
+	local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not localRoot then return end
+
 	for player, espData in pairs(ESPPlayers) do
 		local character = player.Character
 		local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
 		if character and rootPart and humanoid and ESPEnabled then
-			-- Update box properties
-			espData.box.Adornee = rootPart
-			espData.box.Size = Vector3.new(3, humanoid.HipHeight * 2 + 1, 1)
+			-- Calculate distance
+			local distance = math.floor((localRoot.Position - rootPart.Position).magnitude)
 
-			-- Update rainbow color for both box and beam
+			-- Get Rainbow Color
 			local color = getRainbowColor()
-			espData.box.Color3 = color
+
+			-- Update Box properties (RAINBOW)
+			espData.box.Adornee = rootPart
+			espData.box.Color3 = color 
+
+			-- Update Distance Text (RAINBOW & VISIBLE)
+			espData.distanceLabel.Text = distance .. " Studs"
+			espData.distanceLabel.TextColor3 = color 
+			
+			-- Update Tracer (Beam)
 			espData.beam.Color = ColorSequence.new(color)
 		else
 			-- Character no longer exists, or ESP is disabled
@@ -121,10 +158,9 @@ local function onCharacterAdded(character)
 
 		-- Create new ESP only if enabled
 		if ESPEnabled then
-			ESPPlayers[player] = createESP(player)
-			if ESPPlayers[player] then
-				ESPPlayers[player].box.Visible = true
-				ESPPlayers[player].beam.Enabled = true
+			local espData = createESP(player)
+			if espData then
+				ESPPlayers[player] = espData
 			end
 		end
 	end
@@ -158,7 +194,9 @@ local function toggleESP()
 				local espData = createESP(player)
 				if espData then
 					ESPPlayers[player] = espData
+					-- These are now set to true in createESP, but explicitly set for existing players too.
 					espData.box.Visible = true
+					espData.billboardGui.Enabled = true
 					espData.beam.Enabled = true
 				end
 			end
@@ -166,6 +204,7 @@ local function toggleESP()
 	else
 		for player, espData in pairs(ESPPlayers) do
 			if espData.box then espData.box.Visible = false end
+			if espData.billboardGui then espData.billboardGui.Enabled = false end -- Billboard toggle
 			if espData.beam then espData.beam.Enabled = false end
 		end
 	end
@@ -313,18 +352,24 @@ local function showFullbrightPrompt()
 	noButton.Parent = frame
 
 	yesButton.Activated:Connect(function()
-		Lighting.Brightness = 2
-		Lighting.GlobalShadows = false
-		Lighting.Ambient = Color3.new(1, 1, 1)
-		Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+		-- Full Bright Method: Setting the color shift bottom to a bright value
+		Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
 		promptGui:Destroy()
 	end)
 
 	noButton.Activated:Connect(function()
+		-- Reset to original value if "No" is pressed
+		Lighting.ColorShift_Bottom = originalLightingColorShift
 		promptGui:Destroy()
 	end)
 end
 
--- Run script
+-- Run service update loop
+RunService.RenderStepped:Connect(function()
+	updateESP()
+	updateFreecam()
+end)
+
+-- Startup functions
 showFullbrightPrompt()
 showNotification("sk8kid loaded")
